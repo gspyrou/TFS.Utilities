@@ -57,7 +57,7 @@ namespace ConsoleApp3
                 document.Save();
                 document.Close();
 
-
+                Console.Read();
             }
             catch (Exception ex)
             {
@@ -88,7 +88,7 @@ namespace ConsoleApp3
                     DocumentFormat.OpenXml.Spreadsheet.Cell newcell = new DocumentFormat.OpenXml.Spreadsheet.Cell();
                     newcell.DataType = DocumentFormat.OpenXml.Spreadsheet.CellValues.String;
                     newcell.CellValue = new DocumentFormat.OpenXml.Spreadsheet.CellValue(
-                        (string)(data.fields["System.Description"].Value).Replace("<div>", "").Replace("</div>", Environment.NewLine).Replace("&quot;", "\"").Replace("&nbsp;", "")); //
+                        Regex.Replace((string)(data.fields["System.Description"].Value), "<.*?>", String.Empty).Replace("&quot;", "\"").Replace("&nbsp;", ""));
                     row.Append(newcell);
                 }
             }
