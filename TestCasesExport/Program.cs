@@ -19,7 +19,7 @@ namespace ConsoleApp3
     {
         static void Main(string[] args)
         {
-            Console.WriteLine("Please enter the full path to the Excel file:");
+            Console.WriteLine("Enter the full path to the Excel file:");
             var path = Console.ReadLine();
             Task.Run(() => MainAsync(path));
             Console.ReadLine();
@@ -28,7 +28,6 @@ namespace ConsoleApp3
         {
             try
             {
-                var personalaccesstoken = ConfigurationManager.AppSettings["PersonalAccessToken"];
 
                 var document = SpreadsheetDocument.Open(excelFilePath, true);
                 SharedStringTable sharedStringTable = document.WorkbookPart.SharedStringTablePart.SharedStringTable;
@@ -41,42 +40,14 @@ namespace ConsoleApp3
                         {
                             foreach (Row row in sheetData.Elements<Row>())
                             {
-                                // Loop through each of the cells in the current row.
-                                var cells = row.Elements<Cell>().Take(1);
-                                foreach (var cell in cells)
+                                // Process rows only if the first column is the Id of the work item
+                                var cell = row.Elements<Cell>().Take(1).First();
+                                int Id = 0;
+                                if (int.TryParse(GetValue(document, cell), out Id))
                                 {
-                                    // Here is where you would do something with the values of the spreadsheet.
-                                    int Id = 0;
-                                    if (int.TryParse(GetValue(document, cell), out Id))
-                                    {
-                                        Console.WriteLine("TestCaseId : {0}", Id);
-                                        using (HttpClient client = new HttpClient())
-                                        {
-                                            client.DefaultRequestHeaders.Accept.Add(
-                                                new System.Net.Http.Headers.MediaTypeWithQualityHeaderValue("application/json"));
-
-                                            client.DefaultRequestHeaders.Authorization = new AuthenticationHeaderValue("Basic",
-                                                Convert.ToBase64String(
-                                                    System.Text.ASCIIEncoding.ASCII.GetBytes(
-                                                        string.Format("{0}:{1}", "", personalaccesstoken))));
-
-                                            using (HttpResponseMessage response = await client.GetAsync(
-                                                        String.Format("{0}/_apis/wit/workItems/{1}", ConfigurationManager.AppSettings["RestApiBaseUri"], Id)))
-                                            {
-                                                response.EnsureSuccessStatusCode();
-                                                string responseBody = await response.Content.ReadAsStringAsync();
-                                                dynamic data = JObject.Parse(responseBody);
-
-                                                DocumentFormat.OpenXml.Spreadsheet.Cell newcell = new DocumentFormat.OpenXml.Spreadsheet.Cell();
-                                                newcell.DataType = DocumentFormat.OpenXml.Spreadsheet.CellValues.String;
-                                                newcell.CellValue = new DocumentFormat.OpenXml.Spreadsheet.CellValue(
-                                                    (string)(data.fields["System.Description"].Value).Replace("<div>", "").Replace("</div>", Environment.NewLine).Replace("&quot;", "\"").Replace("&nbsp;", "")); //
-                                                row.Append(newcell);
-                                            }
-                                        }
-                                    }
+                                    Console.WriteLine("TestCaseId : {0}", Id);
+                                    await ProcessRow(row, Id);
                                 }
-
                             }
                         }
                     }
@@ -92,6 +63,34 @@ namespace ConsoleApp3
             {
                 Console.WriteLine(ex.ToString());
                 Console.Read();
+            }
+        }
+
+        private static async Task ProcessRow(Row row, int Id)
+        {
+            using (HttpClient client = new HttpClient())
+            {
+                client.DefaultRequestHeaders.Accept.Add(
+                    new System.Net.Http.Headers.MediaTypeWithQualityHeaderValue("application/json"));
+
+                client.DefaultRequestHeaders.Authorization = new AuthenticationHeaderValue("Basic",
+                    Convert.ToBase64String(
+                        System.Text.ASCIIEncoding.ASCII.GetBytes(
+                            string.Format("{0}:{1}", "", ConfigurationManager.AppSettings["PersonalAccessToken"]))));
+
+                using (HttpResponseMessage response = await client.GetAsync(
+                            String.Format("{0}/_apis/wit/workItems/{1}", ConfigurationManager.AppSettings["RestApiBaseUri"], Id)))
+                {
+                    response.EnsureSuccessStatusCode();
+                    string responseBody = await response.Content.ReadAsStringAsync();
+                    dynamic data = JObject.Parse(responseBody);
+
+                    DocumentFormat.OpenXml.Spreadsheet.Cell newcell = new DocumentFormat.OpenXml.Spreadsheet.Cell();
+                    newcell.DataType = DocumentFormat.OpenXml.Spreadsheet.CellValues.String;
+                    newcell.CellValue = new DocumentFormat.OpenXml.Spreadsheet.CellValue(
+                        (string)(data.fields["System.Description"].Value).Replace("<div>", "").Replace("</div>", Environment.NewLine).Replace("&quot;", "\"").Replace("&nbsp;", "")); //
+                    row.Append(newcell);
+                }
             }
         }
 
